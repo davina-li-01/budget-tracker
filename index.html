@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Budget Tracker</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <header class="page-header">
+      <h1>Budget Tracker</h1>
+    </header>
+
+    <main class="container">
+      <section class="card dashboard-card" aria-labelledby="dashboard-title">
+        <div class="dashboard-head">
+          <h2 id="dashboard-title">Dashboard</h2>
+
+          <div class="time-controls">
+            <label>
+              Time Range
+              <select id="time-filter">
+                <option value="weekly">Weekly</option>
+                <option value="monthly" selected>Monthly</option>
+                <option value="yearly">Yearly</option>
+                <option value="custom">Custom</option>
+              </select>
+            </label>
+
+            <div id="custom-date-range" class="custom-range hidden">
+              <label>
+                Start
+                <input id="start-date" type="date" />
+              </label>
+              <label>
+                End
+                <input id="end-date" type="date" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="stat-card">
+            <p class="stat-label">Total Spending</p>
+            <p id="total-spent" class="big-number">$0.00</p>
+            <p id="transactions-count" class="muted-text">0 transactions</p>
+          </article>
+
+          <article class="chart-card">
+            <div class="chart-wrap">
+              <canvas id="spending-chart" aria-label="Spending by category chart"></canvas>
+            </div>
+            <ul id="chart-legend" class="chart-legend"></ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="transactions-title">
+        <div class="transactions-head">
+          <h2 id="transactions-title">Transactions</h2>
+
+          <div class="transactions-controls">
+            <label>
+              Filter Transactions
+              <select id="filter-category">
+                <option value="All">All Categories</option>
+                <option value="Food">Food</option>
+                <option value="Transportation">Transportation</option>
+                <option value="Entertainment">Entertainment</option>
+                <option value="Shopping">Shopping</option>
+                <option value="Bills">Bills</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+
+            <button id="reset-btn" type="button" class="btn btn-danger">
+              Reset Data
+            </button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Amount</th>
+                <th>Description</th>
+                <th>Delete</th>
+              </tr>
+            </thead>
+            <tbody id="expense-table-body">
+              <!-- JavaScript inserts rows here -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <button
+      id="open-modal-btn"
+      class="floating-add-btn"
+      type="button"
+      aria-label="Add expense"
+    >
+      +
+    </button>
+
+    <div id="expense-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <h2 id="modal-title">Add Expense</h2>
+
+        <form id="expense-form">
+          <div class="form-grid">
+            <label>
+              Amount ($)
+              <input
+                id="amount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="Enter amount"
+                required
+              />
+            </label>
+
+            <label>
+              Category
+              <select id="category" required>
+                <option value="Food">Food</option>
+                <option value="Transportation">Transportation</option>
+                <option value="Entertainment">Entertainment</option>
+                <option value="Shopping">Shopping</option>
+                <option value="Bills">Bills</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+
+            <label>
+              Date
+              <input id="expense-date" type="date" required />
+            </label>
+
+            <label class="full-width">
+              Description (optional)
+              <input
+                id="description"
+                type="text"
+                placeholder="Enter description"
+                maxlength="120"
+              />
+            </label>
+          </div>
+
+          <div class="modal-actions">
+            <button type="submit" class="btn btn-primary">Add Expense</button>
+            <button id="close-modal-btn" type="button" class="btn btn-secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
