@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flux Budget • Insights</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <header class="page-header shell">
+      <div class="brand-wrap">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <p class="brand-kicker">FLUX BUDGET</p>
+          <h1>Spending Trends & Analysis</h1>
+        </div>
+      </div>
+
+      <nav class="page-nav" aria-label="Primary">
+        <a class="nav-link" href="index.html">Dashboard</a>
+        <a class="nav-link active" href="analysis.html">Insights</a>
+      </nav>
+    </header>
+
+    <main class="container shell">
+      <section class="card" aria-labelledby="insights-title">
+        <h2 id="insights-title">Performance Snapshot</h2>
+        <p class="section-subtitle">Quick summary of long-term spending behavior.</p>
+
+        <div class="insights-grid" style="margin-top: 0.9rem">
+          <article class="insight-card">
+            <p>All-Time Spending</p>
+            <strong id="all-time-total">$0.00</strong>
+          </article>
+          <article class="insight-card">
+            <p>Average Monthly Spend</p>
+            <strong id="avg-monthly">$0.00</strong>
+          </article>
+          <article class="insight-card">
+            <p>Highest Spend Month</p>
+            <strong id="top-month">—</strong>
+          </article>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="charts-title">
+        <h2 id="charts-title">Trend Charts</h2>
+        <p class="section-subtitle">Month-to-month trend + category distribution across all history.</p>
+
+        <div class="analysis-chart-grid" style="margin-top: 0.9rem">
+          <article class="chart-panel">
+            <h3>Monthly Spending Trend</h3>
+            <canvas id="monthly-trend-chart" aria-label="Monthly spending line chart"></canvas>
+          </article>
+
+          <article class="chart-panel">
+            <h3>Category Totals</h3>
+            <canvas id="category-trend-chart" aria-label="Category totals bar chart"></canvas>
+          </article>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="trend-summary-title">
+        <h2 id="trend-summary-title">Auto Insights</h2>
+        <p class="section-subtitle">Simple trend findings generated from your data.</p>
+        <ul id="trend-list" class="trend-list" style="margin-top: 0.8rem"></ul>
+      </section>
+    </main>
+
+    <script src="analysis.js"></script>
+  </body>
+</html>

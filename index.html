@@ -3,19 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Budget Tracker</title>
+    <title>Flux Budget • Smart Spending</title>
     <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
-    <header class="page-header">
-      <h1>Budget Tracker</h1>
+    <header class="page-header shell">
+      <div class="brand-wrap">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <p class="brand-kicker">FLUX BUDGET</p>
+          <h1>Smart Spending Command Center</h1>
+        </div>
+      </div>
+
+      <nav class="page-nav" aria-label="Primary">
+        <a class="nav-link active" href="index.html">Dashboard</a>
+        <a class="nav-link" href="analysis.html">Insights</a>
+      </nav>
     </header>
 
-    <main class="container">
+    <main class="container shell">
       <section class="card dashboard-card" aria-labelledby="dashboard-title">
         <div class="dashboard-head">
-          <h2 id="dashboard-title">Dashboard</h2>
+          <div>
+            <h2 id="dashboard-title">Monthly Overview</h2>
+            <p id="active-period-label" class="section-subtitle">Current month</p>
+          </div>
 
           <div class="time-controls">
             <label>
@@ -42,18 +62,111 @@
         </div>
 
         <div class="dashboard-grid">
-          <article class="stat-card">
-            <p class="stat-label">Total Spending</p>
-            <p id="total-spent" class="big-number">$0.00</p>
-            <p id="transactions-count" class="muted-text">0 transactions</p>
-          </article>
+          <div class="stats-column">
+            <article class="stat-card metric-card">
+              <p class="stat-label">Total Spending ($)</p>
+              <p id="total-spent" class="big-number">$0.00</p>
+              <p id="transactions-count" class="muted-text">0 transactions</p>
+            </article>
+
+            <article class="stat-card metric-card">
+              <p class="stat-label">Total Spending (%)</p>
+              <p id="total-spent-pct" class="big-number">—</p>
+              <p class="muted-text">Of total set budget</p>
+            </article>
+
+            <article class="stat-card metric-card">
+              <p class="stat-label">Budget Leftover</p>
+              <p id="budget-leftover" class="big-number">$0.00</p>
+              <p class="muted-text">Budget minus spending</p>
+            </article>
+          </div>
 
           <article class="chart-card">
             <div class="chart-wrap">
               <canvas id="spending-chart" aria-label="Spending by category chart"></canvas>
+              <div class="chart-center-overlay" aria-live="polite">
+                <p class="chart-center-label">Monthly Budget Used</p>
+                <p id="chart-center-percent" class="chart-center-percent">—</p>
+                <p id="chart-center-amount" class="chart-center-amount">$0.00 / $0.00</p>
+              </div>
             </div>
-            <ul id="chart-legend" class="chart-legend"></ul>
+            <div class="chart-side-panel">
+              <div class="budget-sheet-wrap">
+                <h3>Category Budget Sheet</h3>
+                <div class="table-wrap">
+                  <table class="budget-sheet">
+                    <thead>
+                      <tr>
+                        <th>Category</th>
+                        <th>Budget ($)</th>
+                        <th>Spent ($)</th>
+                        <th>Used (%)</th>
+                      </tr>
+                    </thead>
+                    <tbody id="budget-sheet-body"><!-- Rendered in JS --></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </article>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="paycheck-title">
+        <div class="transactions-head">
+          <div>
+            <h2 id="paycheck-title">Paycheck Breakdown</h2>
+            <p class="section-subtitle">Split your paycheck into investments and fun.</p>
+          </div>
+        </div>
+
+        <div class="paycheck-grid">
+          <div class="paycheck-inputs">
+            <label>
+              Paycheck Amount ($)
+              <input id="paycheck-amount" type="number" min="0" step="0.01" placeholder="0.00" />
+            </label>
+
+            <label>
+              Investments (%)
+              <input id="split-investments" type="number" min="0" max="100" step="0.1" placeholder="0" />
+            </label>
+
+            <label>
+              Fun (%)
+              <input id="split-fun" type="number" min="0" max="100" step="0.1" placeholder="0" />
+            </label>
+          </div>
+
+          <div class="table-wrap">
+            <table class="paycheck-table">
+              <thead>
+                <tr>
+                  <th>Bucket</th>
+                  <th>Percent</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Investments</td>
+                  <td id="paycheck-investments-pct">0.0%</td>
+                  <td id="paycheck-investments-amount">$0.00</td>
+                </tr>
+                <tr>
+                  <td>Fun</td>
+                  <td id="paycheck-fun-pct">0.0%</td>
+                  <td id="paycheck-fun-amount">$0.00</td>
+                </tr>
+                <tr>
+                  <td>Remaining</td>
+                  <td id="paycheck-remaining-pct">100.0%</td>
+                  <td id="paycheck-remaining-amount">$0.00</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -68,16 +181,12 @@
                 <option value="All">All Categories</option>
                 <option value="Food">Food</option>
                 <option value="Transportation">Transportation</option>
-                <option value="Entertainment">Entertainment</option>
-                <option value="Shopping">Shopping</option>
-                <option value="Bills">Bills</option>
+                <option value="Leisure">Leisure</option>
+                <option value="Necessities">Necessities</option>
+                <option value="Investing">Investing</option>
                 <option value="Other">Other</option>
               </select>
             </label>
-
-            <button id="reset-btn" type="button" class="btn btn-danger">
-              Reset Data
-            </button>
           </div>
         </div>
 
@@ -89,7 +198,7 @@
                 <th>Category</th>
                 <th>Amount</th>
                 <th>Description</th>
-                <th>Delete</th>
+                  <th>Actions</th>
               </tr>
             </thead>
             <tbody id="expense-table-body">
@@ -113,10 +222,10 @@
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <h2 id="modal-title">Add Expense</h2>
 
-        <form id="expense-form">
+        <form id="expense-form" novalidate>
           <div class="form-grid">
             <label>
-              Amount ($)
+              Amount ($) <span class="required-asterisk" aria-hidden="true">*</span>
               <input
                 id="amount"
                 type="number"
@@ -128,35 +237,36 @@
             </label>
 
             <label>
-              Category
+              Category <span class="required-asterisk" aria-hidden="true">*</span>
               <select id="category" required>
                 <option value="Food">Food</option>
                 <option value="Transportation">Transportation</option>
-                <option value="Entertainment">Entertainment</option>
-                <option value="Shopping">Shopping</option>
-                <option value="Bills">Bills</option>
+                <option value="Leisure">Leisure</option>
+                <option value="Necessities">Necessities</option>
+                <option value="Investing">Investing</option>
                 <option value="Other">Other</option>
               </select>
             </label>
 
             <label>
-              Date
+              Date <span class="required-asterisk" aria-hidden="true">*</span>
               <input id="expense-date" type="date" required />
             </label>
 
             <label class="full-width">
-              Description (optional)
+              Description <span class="required-asterisk" aria-hidden="true">*</span>
               <input
                 id="description"
                 type="text"
                 placeholder="Enter description"
                 maxlength="120"
+                required
               />
             </label>
           </div>
 
           <div class="modal-actions">
-            <button type="submit" class="btn btn-primary">Add Expense</button>
+            <button id="submit-expense-btn" type="submit" class="btn btn-primary">Add Expense</button>
             <button id="close-modal-btn" type="button" class="btn btn-secondary">Cancel</button>
           </div>
         </form>
