@@ -412,11 +412,16 @@ function renderExpenses() {
     const editButton = document.createElement("button");
     editButton.className = "btn btn-secondary btn-edit";
     editButton.textContent = "Edit";
+    editButton.setAttribute("aria-label", `Edit ${expense.category} transaction for ${formatCurrency(expense.amount)} on ${formatDate(expense.date)}`);
     editButton.addEventListener("click", () => editExpense(expense.id));
 
     const deleteButton = document.createElement("button");
     deleteButton.className = "btn btn-danger btn-delete";
     deleteButton.textContent = "Delete";
+    deleteButton.setAttribute(
+      "aria-label",
+      `Delete ${expense.category} transaction for ${formatCurrency(expense.amount)} on ${formatDate(expense.date)}`
+    );
     deleteButton.addEventListener("click", () => deleteExpense(expense.id));
 
     actionCell.appendChild(editButton);
