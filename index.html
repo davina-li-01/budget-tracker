@@ -14,6 +14,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+
     <header class="page-header shell">
       <div class="brand-wrap">
         <div class="brand-mark" aria-hidden="true"></div>
@@ -29,12 +31,15 @@
       </nav>
     </header>
 
-    <main class="container shell">
+    <main id="main-content" class="container shell">
       <section class="card dashboard-card" aria-labelledby="dashboard-title">
         <div class="dashboard-head">
           <div>
             <h2 id="dashboard-title">Monthly Overview</h2>
             <p id="active-period-label" class="section-subtitle">Current month</p>
+            <p id="dashboard-overview-help" class="visually-hidden">
+              This section summarizes your spending, budget use, and category level progress for the selected time range.
+            </p>
           </div>
 
           <div class="time-controls">
@@ -82,9 +87,17 @@
             </article>
           </div>
 
-          <article class="chart-card">
+          <article class="chart-card" aria-describedby="spending-chart-help">
             <div class="chart-wrap">
-              <canvas id="spending-chart" aria-label="Spending by category chart"></canvas>
+              <canvas
+                id="spending-chart"
+                role="img"
+                aria-label="Spending by category chart"
+                aria-describedby="spending-chart-help"
+              ></canvas>
+              <p id="spending-chart-help" class="visually-hidden">
+                Doughnut chart showing how total spending is distributed across categories. The table to the right provides exact budget, spent amount, and percentage used values.
+              </p>
               <div class="chart-center-overlay" aria-live="polite">
                 <p class="chart-center-label">Monthly Budget Used</p>
                 <p id="chart-center-percent" class="chart-center-percent">—</p>
@@ -96,6 +109,9 @@
                 <h3>Category Budget Sheet</h3>
                 <div class="table-wrap">
                   <table class="budget-sheet">
+                    <caption class="visually-hidden">
+                      Budget sheet listing each category with budget amount, amount spent, and percentage used.
+                    </caption>
                     <thead>
                       <tr>
                         <th>Category</th>
@@ -173,6 +189,9 @@
       <section class="card" aria-labelledby="transactions-title">
         <div class="transactions-head">
           <h2 id="transactions-title">Transactions</h2>
+          <p id="transactions-help" class="visually-hidden">
+            Add, filter, edit, and delete transactions. New transactions can be entered directly in the form below and appear in the table.
+          </p>
 
           <div class="transactions-controls">
             <label>
@@ -190,8 +209,55 @@
           </div>
         </div>
 
+        <form id="inline-expense-form" class="inline-expense-form" novalidate aria-describedby="transactions-help">
+          <label>
+            Amount ($)
+            <input
+              id="inline-amount"
+              type="number"
+              min="0.01"
+              step="0.01"
+              placeholder="0.00"
+              required
+            />
+          </label>
+
+          <label>
+            Category
+            <select id="inline-category" required>
+              <option value="Food">Food</option>
+              <option value="Transportation">Transportation</option>
+              <option value="Leisure">Leisure</option>
+              <option value="Necessities">Necessities</option>
+              <option value="Investing">Investing</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+
+          <label>
+            Date
+            <input id="inline-expense-date" type="date" required />
+          </label>
+
+          <label>
+            Description
+            <input
+              id="inline-description"
+              type="text"
+              maxlength="120"
+              placeholder="What was this for?"
+              required
+            />
+          </label>
+
+          <button type="submit" class="btn btn-primary inline-submit-btn">Add Transaction</button>
+        </form>
+
         <div class="table-wrap">
           <table>
+            <caption class="visually-hidden">
+              Transaction history table with date, category, amount, description, and action buttons.
+            </caption>
             <thead>
               <tr>
                 <th>Date</th>
@@ -213,14 +279,23 @@
       id="open-modal-btn"
       class="floating-add-btn"
       type="button"
-      aria-label="Add expense"
+      aria-label="Open add expense dialog"
     >
       +
     </button>
 
     <div id="expense-modal" class="modal hidden" aria-hidden="true">
-      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        aria-describedby="modal-help"
+      >
         <h2 id="modal-title">Add Expense</h2>
+        <p id="modal-help" class="visually-hidden">
+          Enter expense amount, category, date, and description, then submit to save the transaction.
+        </p>
 
         <form id="expense-form" novalidate>
           <div class="form-grid">
@@ -272,6 +347,8 @@
         </form>
       </div>
     </div>
+
+    <p id="sr-status" class="visually-hidden" aria-live="polite" aria-atomic="true"></p>
 
     <script src="script.js"></script>
   </body>

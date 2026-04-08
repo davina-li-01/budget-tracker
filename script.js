@@ -40,6 +40,12 @@ const filterCategorySelect = document.querySelector("#filter-category");
 const expenseTableBody = document.querySelector("#expense-table-body");
 const budgetSheetBody = document.querySelector("#budget-sheet-body");
 
+const inlineExpenseForm = document.querySelector("#inline-expense-form");
+const inlineAmountInput = document.querySelector("#inline-amount");
+const inlineCategoryInput = document.querySelector("#inline-category");
+const inlineDescriptionInput = document.querySelector("#inline-description");
+const inlineExpenseDateInput = document.querySelector("#inline-expense-date");
+
 const totalSpentElement = document.querySelector("#total-spent");
 const totalSpentPctElement = document.querySelector("#total-spent-pct");
 const budgetLeftoverElement = document.querySelector("#budget-leftover");
@@ -70,6 +76,7 @@ const openModalButton = document.querySelector("#open-modal-btn");
 const closeModalButton = document.querySelector("#close-modal-btn");
 const modalTitle = document.querySelector("#modal-title");
 const submitExpenseButton = document.querySelector("#submit-expense-btn");
+const srStatusRegion = document.querySelector("#sr-status");
 
 const requiredFields = [amountInput, categoryInput, expenseDateInput, descriptionInput];
 
@@ -83,6 +90,17 @@ function formatSignedCurrency(value) {
   }
 
   return `-${formatCurrency(Math.abs(value))}`;
+}
+
+function announceStatus(message) {
+  if (!srStatusRegion) {
+    return;
+  }
+
+  srStatusRegion.textContent = "";
+  window.setTimeout(() => {
+    srStatusRegion.textContent = message;
+  }, 30);
 }
 
 function getTodayString() {
@@ -251,6 +269,17 @@ function filterExpenses(list) {
   return list.filter((expense) => expense.category === selectedCategory);
 }
 
+function addExpenseRecord({ amount, category, description, date }) {
+  expenses.push({
+    id: nextId,
+    amount,
+    category,
+    description,
+    date
+  });
+  nextId += 1;
+}
+
 function addExpense(event) {
   event.preventDefault();
 
@@ -264,14 +293,8 @@ function addExpense(event) {
   const date = expenseDateInput.value;
 
   if (editingExpenseId === null) {
-    expenses.push({
-      id: nextId,
-      amount,
-      category,
-      description,
-      date
-    });
-    nextId += 1;
+    addExpenseRecord({ amount, category, description, date });
+    announceStatus(`Added transaction for ${formatCurrency(amount)} in ${category}.`);
   } else {
     expenses = expenses.map((expense) =>
       expense.id === editingExpenseId
@@ -284,6 +307,7 @@ function addExpense(event) {
           }
         : expense
     );
+    announceStatus(`Updated transaction to ${formatCurrency(amount)} in ${category}.`);
   }
 
   saveToLocalStorage();
@@ -291,10 +315,45 @@ function addExpense(event) {
   closeModal();
 }
 
+function addInlineExpense(event) {
+  event.preventDefault();
+
+  const amount = Number(inlineAmountInput.value);
+  const category = inlineCategoryInput.value;
+  const description = inlineDescriptionInput.value.trim();
+  const date = inlineExpenseDateInput.value;
+
+  const isValid = Number.isFinite(amount) && amount > 0 && category && description.length > 0 && date;
+  if (!isValid) {
+    [inlineAmountInput, inlineCategoryInput, inlineDescriptionInput, inlineExpenseDateInput].forEach((field) => {
+      field.classList.toggle("is-invalid", !field.value || (field === inlineAmountInput && !(amount > 0)));
+    });
+    return;
+  }
+
+  [inlineAmountInput, inlineCategoryInput, inlineDescriptionInput, inlineExpenseDateInput].forEach((field) => {
+    field.classList.remove("is-invalid");
+  });
+
+  addExpenseRecord({ amount, category, description, date });
+  saveToLocalStorage();
+  refreshView();
+  announceStatus(`Added transaction for ${formatCurrency(amount)} in ${category}.`);
+
+  inlineExpenseForm.reset();
+  inlineCategoryInput.value = "Food";
+  inlineExpenseDateInput.value = getTodayString();
+}
+
 function deleteExpense(expenseId) {
+  const deletedExpense = expenses.find((expense) => expense.id === expenseId);
   expenses = expenses.filter((expense) => expense.id !== expenseId);
   saveToLocalStorage();
   refreshView();
+
+  if (deletedExpense) {
+    announceStatus(`Deleted transaction for ${formatCurrency(deletedExpense.amount)} in ${deletedExpense.category}.`);
+  }
 }
 
 function editExpense(expenseId) {
@@ -684,9 +743,11 @@ function handleTimeFilterChange() {
   const isCustom = timeFilterSelect.value === "custom";
   customDateRange.classList.toggle("hidden", !isCustom);
   refreshView();
+  announceStatus(`Time range set to ${timeFilterSelect.value}.`);
 }
 
 expenseForm.addEventListener("submit", addExpense);
+inlineExpenseForm.addEventListener("submit", addInlineExpense);
 
 requiredFields.forEach((field) => {
   const eventName = field.tagName === "SELECT" ? "change" : "input";
@@ -694,7 +755,10 @@ requiredFields.forEach((field) => {
   field.addEventListener("blur", () => updateFieldValidationState(field));
 });
 
-filterCategorySelect.addEventListener("change", renderExpenses);
+filterCategorySelect.addEventListener("change", () => {
+  renderExpenses();
+  announceStatus(`Transaction filter set to ${filterCategorySelect.value}.`);
+});
 
 timeFilterSelect.addEventListener("change", handleTimeFilterChange);
 startDateInput.addEventListener("change", () => {
@@ -724,6 +788,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 expenseDateInput.value = getTodayString();
+inlineExpenseDateInput.value = getTodayString();
 timeFilterSelect.value = "monthly";
 loadFromLocalStorage();
 loadBudgetsFromLocalStorage();
