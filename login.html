@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flux Budget • Login</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="auth-page">
+    <main class="auth-page-wrap shell" aria-labelledby="login-title">
+      <section class="auth-card auth-page-card">
+        <p class="brand-kicker">FLUX BUDGET</p>
+        <h1 id="login-title">Log in</h1>
+        <p class="section-subtitle">Access your budget dashboard securely.</p>
+
+        <p id="login-error" class="auth-error hidden" aria-live="assertive"></p>
+
+        <form id="login-form" class="auth-form" novalidate>
+          <label>
+            Username
+            <input id="login-username" type="text" autocomplete="username" required />
+          </label>
+
+          <label>
+            Password
+            <input id="login-password" type="password" autocomplete="current-password" required />
+          </label>
+
+          <button type="submit" class="btn btn-primary">Log in</button>
+        </form>
+
+        <p class="auth-footer">Need an account? <a href="signup.html">Create one</a></p>
+      </section>
+    </main>
+
+    <script src="auth.js"></script>
+    <script src="login.js"></script>
+  </body>
+</html>

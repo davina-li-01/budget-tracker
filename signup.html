@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flux Budget • Create Account</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="auth-page">
+    <main class="auth-page-wrap shell" aria-labelledby="signup-title">
+      <section class="auth-card auth-page-card">
+        <p class="brand-kicker">FLUX BUDGET</p>
+        <h1 id="signup-title">Create account</h1>
+        <p class="section-subtitle">Set up a secure username and password.</p>
+
+        <ul class="password-rules" aria-label="Password requirements">
+          <li>8 to 32 characters</li>
+          <li>At least one uppercase letter</li>
+          <li>At least one lowercase letter</li>
+          <li>At least one special character</li>
+        </ul>
+
+        <p id="signup-error" class="auth-error hidden" aria-live="assertive"></p>
+        <p id="signup-success" class="auth-success hidden" aria-live="polite"></p>
+
+        <form id="signup-form" class="auth-form" novalidate>
+          <label>
+            Username
+            <input id="signup-username" type="text" autocomplete="username" required />
+          </label>
+
+          <label>
+            Password
+            <input id="signup-password" type="password" autocomplete="new-password" minlength="8" maxlength="32" required />
+          </label>
+
+          <label>
+            Confirm Password
+            <input id="signup-password-confirm" type="password" autocomplete="new-password" minlength="8" maxlength="32" required />
+          </label>
+
+          <button type="submit" class="btn btn-primary">Create account</button>
+        </form>
+
+        <p class="auth-footer">Already have an account? <a href="login.html">Log in</a></p>
+      </section>
+    </main>
+
+    <script src="auth.js"></script>
+    <script src="signup.js"></script>
+  </body>
+</html>

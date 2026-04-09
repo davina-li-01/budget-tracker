@@ -10,9 +10,11 @@ let paycheckSplit = {
 };
 
 const CATEGORIES = ["Transportation", "Food", "Leisure", "Necessities", "Investing", "Other"];
-const STORAGE_KEY = "budgetTrackerExpenses";
-const BUDGET_STORAGE_KEY = "budgetTrackerCategoryBudgets";
-const PAYCHECK_STORAGE_KEY = "budgetTrackerPaycheckSplit";
+const authSession = window.BudgetAuth?.requireAuth({ loginPath: "login.html" });
+const activeUsername = authSession?.username || "guest";
+const STORAGE_KEY = `budgetTrackerExpenses:${activeUsername}`;
+const BUDGET_STORAGE_KEY = `budgetTrackerCategoryBudgets:${activeUsername}`;
+const PAYCHECK_STORAGE_KEY = `budgetTrackerPaycheckSplit:${activeUsername}`;
 const ENCRYPTED_STORAGE_KEY = "budgetTrackerEncryptedData";
 const SESSION_PASSPHRASE_KEY = "budgetTrackerSessionPassphrase";
 const SESSION_AUTH_KEY = "budgetTrackerSessionAuthenticated";
@@ -1143,18 +1145,30 @@ expenseDateInput.value = getTodayString();
 inlineExpenseDateInput.value = getTodayString();
 timeFilterSelect.value = "monthly";
 async function initializeApp() {
-  startSessionTimeoutWatchdog();
-  await initializeSecureState();
+  loadFromLocalStorage();
+  loadBudgetsFromLocalStorage();
+  loadPaycheckSplitFromLocalStorage();
   renderBudgetSheet();
   renderPaycheckInputs();
   renderPaycheckBreakdown();
   handleTimeFilterChange();
+
+  if (window.BudgetAuth) {
+    window.BudgetAuth.startActivityTracking();
+  }
 }
 
 initializeApp();
 
 if (logoutButton) {
-  logoutButton.addEventListener("click", logoutAndReload);
+  logoutButton.addEventListener("click", () => {
+    if (window.BudgetAuth) {
+      window.BudgetAuth.logout({ loginPath: "login.html" });
+      return;
+    }
+
+    window.location.href = "login.html";
+  });
 }
 
 paycheckAmountInput.addEventListener("input", handlePaycheckInputChange);

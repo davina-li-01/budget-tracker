@@ -605,6 +605,47 @@ tbody tr:hover {
   font-size: 0.84rem;
 }
 
+.auth-success {
+  margin: 0.65rem 0 0;
+  color: #86efac;
+  font-size: 0.84rem;
+}
+
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 1rem 0;
+}
+
+.auth-page-wrap {
+  width: min(520px, 100% - 1.25rem);
+}
+
+.auth-page-card h1 {
+  margin: 0;
+  font-size: clamp(1.4rem, 3.8vw, 1.9rem);
+}
+
+.auth-footer {
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.auth-footer a {
+  color: #c4b5fd;
+}
+
+.password-rules {
+  margin: 0.7rem 0 0;
+  padding-left: 1.2rem;
+  color: #dbeafe;
+  font-size: 0.85rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
 .modal-card {
   width: min(640px, 100%);
   border-radius: 16px;
