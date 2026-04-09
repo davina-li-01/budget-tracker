@@ -1,4 +1,10 @@
 const STORAGE_KEY = "budgetTrackerExpenses";
+const ENCRYPTED_STORAGE_KEY = "budgetTrackerEncryptedData";
+const SESSION_PASSPHRASE_KEY = "budgetTrackerSessionPassphrase";
+const SESSION_AUTH_KEY = "budgetTrackerSessionAuthenticated";
+const AUTH_LAST_ACTIVE_KEY = "budgetTrackerLastActiveAt";
+const AUTH_CACHE_KEY = "budgetTrackerShortLivedAuth";
+const AUTH_TIMEOUT_MS = 30 * 60 * 1000;
 const CATEGORIES = ["Transportation", "Food", "Leisure", "Necessities", "Investing", "Other"];
 
 const CATEGORY_COLORS = {
@@ -24,9 +30,147 @@ const trendList = document.querySelector("#trend-list");
 
 const monthlyTrendCanvas = document.querySelector("#monthly-trend-chart");
 const categoryTrendCanvas = document.querySelector("#category-trend-chart");
+const logoutButton = document.querySelector("#logout-btn");
+const authScreen = document.querySelector("#auth-screen");
+const authForm = document.querySelector("#auth-form");
+const authPassphraseInput = document.querySelector("#auth-passphrase");
+const authSubmitButton = document.querySelector("#auth-submit-btn");
+const authError = document.querySelector("#auth-error");
 
 let monthlyTrendChart = null;
 let categoryTrendChart = null;
+let isAuthenticated = false;
+
+function hasValidSessionWindow() {
+  const lastActive = Number(localStorage.getItem(AUTH_LAST_ACTIVE_KEY) || 0);
+  return Date.now() - lastActive <= AUTH_TIMEOUT_MS;
+}
+
+function markActivity() {
+  if (!isAuthenticated) {
+    return;
+  }
+
+  localStorage.setItem(AUTH_LAST_ACTIVE_KEY, String(Date.now()));
+}
+
+function setAuthenticated(passphrase) {
+  isAuthenticated = true;
+  sessionStorage.setItem(SESSION_AUTH_KEY, "1");
+  sessionStorage.setItem(SESSION_PASSPHRASE_KEY, passphrase);
+  localStorage.setItem(AUTH_CACHE_KEY, btoa(unescape(encodeURIComponent(passphrase))));
+  markActivity();
+  authScreen.classList.add("hidden");
+  authScreen.setAttribute("aria-hidden", "true");
+}
+
+function showAuthError(message) {
+  authError.textContent = message;
+  authError.classList.remove("hidden");
+}
+
+function clearAuthError() {
+  authError.textContent = "";
+  authError.classList.add("hidden");
+}
+
+function showAuthScreen() {
+  clearAuthError();
+  authPassphraseInput.value = "";
+  authSubmitButton.textContent = "Log in";
+  authScreen.classList.remove("hidden");
+  authScreen.setAttribute("aria-hidden", "false");
+  authPassphraseInput.focus();
+
+  return new Promise((resolve) => {
+    const handleSubmit = (event) => {
+      event.preventDefault();
+      const passphrase = authPassphraseInput.value.trim();
+      if (passphrase.length < 8) {
+        showAuthError("Passphrase must be at least 8 characters.");
+        return;
+      }
+
+      authForm.removeEventListener("submit", handleSubmit);
+      resolve(passphrase);
+    };
+
+    authForm.addEventListener("submit", handleSubmit);
+  });
+}
+
+function logoutAndRedirect() {
+  isAuthenticated = false;
+  sessionStorage.removeItem(SESSION_AUTH_KEY);
+  sessionStorage.removeItem(SESSION_PASSPHRASE_KEY);
+  localStorage.removeItem(AUTH_LAST_ACTIVE_KEY);
+  localStorage.removeItem(AUTH_CACHE_KEY);
+  window.location.href = "index.html";
+}
+
+function getShortLivedPassphrase() {
+  const raw = localStorage.getItem(AUTH_CACHE_KEY);
+  if (!raw) {
+    return "";
+  }
+
+  try {
+    return decodeURIComponent(escape(atob(raw)));
+  } catch (error) {
+    localStorage.removeItem(AUTH_CACHE_KEY);
+    return "";
+  }
+}
+
+function startSessionTimeoutWatchdog() {
+  const activityEvents = ["click", "keydown", "input", "pointerdown", "touchstart"];
+  activityEvents.forEach((eventName) => {
+    window.addEventListener(eventName, markActivity, { passive: true });
+  });
+
+  window.setInterval(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    if (!hasValidSessionWindow()) {
+      logoutAndRedirect();
+    }
+  }, 15000);
+}
+
+function fromBase64(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function deriveKey(passphrase, saltBytes) {
+  const encoder = new TextEncoder();
+  const baseKey = await crypto.subtle.importKey("raw", encoder.encode(passphrase), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: saltBytes,
+      iterations: 150000,
+      hash: "SHA-256"
+    },
+    baseKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"]
+  );
+}
+
+async function decryptStatePayload(payload, key) {
+  const iv = fromBase64(payload.iv);
+  const encryptedData = fromBase64(payload.data);
+  const plainBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encryptedData);
+  return new TextDecoder().decode(plainBuffer);
+}
 
 function formatCurrency(value) {
   return `$${value.toFixed(2)}`;
@@ -63,7 +207,20 @@ function getMonthKey(dateString) {
   return `${year}-${month}`;
 }
 
-function loadExpenses() {
+function normalizeExpenses(parsedExpenses) {
+  return parsedExpenses
+    .filter((item) => item && typeof item === "object")
+    .map((item) => ({
+      id: Number(item.id),
+      amount: Number(item.amount),
+      category: normalizeCategory(item.category),
+      description: typeof item.description === "string" ? item.description : "",
+      date: typeof item.date === "string" ? item.date : ""
+    }))
+    .filter((item) => item.id > 0 && item.amount > 0 && item.date);
+}
+
+function loadLegacyExpenses() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
     return [];
@@ -75,16 +232,55 @@ function loadExpenses() {
       return [];
     }
 
-    return parsed
-      .filter((item) => item && typeof item === "object")
-      .map((item) => ({
-        id: Number(item.id),
-        amount: Number(item.amount),
-        category: normalizeCategory(item.category),
-        description: typeof item.description === "string" ? item.description : "",
-        date: typeof item.date === "string" ? item.date : ""
-      }))
-      .filter((item) => item.id > 0 && item.amount > 0 && item.date);
+    return normalizeExpenses(parsed);
+  } catch (error) {
+    return [];
+  }
+}
+
+async function loadExpenses() {
+  const encryptedRaw = localStorage.getItem(ENCRYPTED_STORAGE_KEY);
+  if (!encryptedRaw) {
+    isAuthenticated = true;
+    return loadLegacyExpenses();
+  }
+
+  try {
+    const payload = JSON.parse(encryptedRaw);
+    const saltBytes = fromBase64(payload.salt);
+    const hasSession = sessionStorage.getItem(SESSION_AUTH_KEY) === "1";
+    const cachedPassphrase = sessionStorage.getItem(SESSION_PASSPHRASE_KEY) || "";
+    const shortLivedPassphrase = hasValidSessionWindow() ? getShortLivedPassphrase() : "";
+    const resumePassphrase = cachedPassphrase || shortLivedPassphrase;
+
+    if (resumePassphrase && hasValidSessionWindow() && (hasSession || shortLivedPassphrase)) {
+      try {
+        const cachedKey = await deriveKey(resumePassphrase, saltBytes);
+        const cachedPlainText = await decryptStatePayload(payload, cachedKey);
+        const cachedState = JSON.parse(cachedPlainText);
+        setAuthenticated(resumePassphrase);
+        return normalizeExpenses(Array.isArray(cachedState.expenses) ? cachedState.expenses : []);
+      } catch (error) {
+        sessionStorage.removeItem(SESSION_AUTH_KEY);
+        sessionStorage.removeItem(SESSION_PASSPHRASE_KEY);
+        localStorage.removeItem(AUTH_CACHE_KEY);
+      }
+    }
+
+    while (true) {
+      const passphrase = await showAuthScreen();
+
+      try {
+        const key = await deriveKey(passphrase, saltBytes);
+        const plainText = await decryptStatePayload(payload, key);
+        const decryptedState = JSON.parse(plainText);
+        setAuthenticated(passphrase);
+        const parsedExpenses = Array.isArray(decryptedState.expenses) ? decryptedState.expenses : [];
+        return normalizeExpenses(parsedExpenses);
+      } catch (error) {
+        showAuthError("Incorrect passphrase. Try again.");
+      }
+    }
   } catch (error) {
     return [];
   }
@@ -274,8 +470,9 @@ function renderInsights(expenses, aggregates) {
   trendList.appendChild(avgItem);
 }
 
-function initializeAnalysis() {
-  const expenses = loadExpenses();
+async function initializeAnalysis() {
+  startSessionTimeoutWatchdog();
+  const expenses = await loadExpenses();
   const aggregates = buildAggregates(expenses);
 
   renderSnapshot(expenses, aggregates);
@@ -285,3 +482,7 @@ function initializeAnalysis() {
 }
 
 initializeAnalysis();
+
+if (logoutButton) {
+  logoutButton.addEventListener("click", logoutAndRedirect);
+}

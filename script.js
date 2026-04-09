@@ -13,6 +13,13 @@ const CATEGORIES = ["Transportation", "Food", "Leisure", "Necessities", "Investi
 const STORAGE_KEY = "budgetTrackerExpenses";
 const BUDGET_STORAGE_KEY = "budgetTrackerCategoryBudgets";
 const PAYCHECK_STORAGE_KEY = "budgetTrackerPaycheckSplit";
+const ENCRYPTED_STORAGE_KEY = "budgetTrackerEncryptedData";
+const SESSION_PASSPHRASE_KEY = "budgetTrackerSessionPassphrase";
+const SESSION_AUTH_KEY = "budgetTrackerSessionAuthenticated";
+const AUTH_LAST_ACTIVE_KEY = "budgetTrackerLastActiveAt";
+const AUTH_CACHE_KEY = "budgetTrackerShortLivedAuth";
+const AUTH_TIMEOUT_MS = 30 * 60 * 1000;
+const STORAGE_VERSION = 1;
 
 const CHART_COLORS = {
   Transportation: "#22d3ee",
@@ -77,8 +84,327 @@ const closeModalButton = document.querySelector("#close-modal-btn");
 const modalTitle = document.querySelector("#modal-title");
 const submitExpenseButton = document.querySelector("#submit-expense-btn");
 const srStatusRegion = document.querySelector("#sr-status");
+const logoutButton = document.querySelector("#logout-btn");
+const authScreen = document.querySelector("#auth-screen");
+const authForm = document.querySelector("#auth-form");
+const authPassphraseInput = document.querySelector("#auth-passphrase");
+const authPassphraseConfirmInput = document.querySelector("#auth-passphrase-confirm");
+const authConfirmWrap = document.querySelector("#auth-confirm-wrap");
+const authSubmitButton = document.querySelector("#auth-submit-btn");
+const authError = document.querySelector("#auth-error");
 
 const requiredFields = [amountInput, categoryInput, expenseDateInput, descriptionInput];
+let activeEncryptionSalt = "";
+let encryptionKey = null;
+let storageMode = "legacy";
+let isAuthenticated = false;
+
+function toBase64(bytes) {
+  let binary = "";
+  bytes.forEach((b) => {
+    binary += String.fromCharCode(b);
+  });
+  return btoa(binary);
+}
+
+function fromBase64(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function deriveKey(passphrase, saltBytes) {
+  const encoder = new TextEncoder();
+  const baseKey = await crypto.subtle.importKey("raw", encoder.encode(passphrase), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: saltBytes,
+      iterations: 150000,
+      hash: "SHA-256"
+    },
+    baseKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function encryptText(plainText) {
+  if (!encryptionKey || !activeEncryptionSalt) {
+    return null;
+  }
+
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cipherBuffer = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    encryptionKey,
+    new TextEncoder().encode(plainText)
+  );
+
+  return {
+    v: STORAGE_VERSION,
+    salt: activeEncryptionSalt,
+    iv: toBase64(iv),
+    data: toBase64(new Uint8Array(cipherBuffer))
+  };
+}
+
+async function decryptPayload(payload) {
+  if (!encryptionKey) {
+    return null;
+  }
+
+  const iv = fromBase64(payload.iv);
+  const encryptedData = fromBase64(payload.data);
+  const plainBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, encryptionKey, encryptedData);
+  return new TextDecoder().decode(plainBuffer);
+}
+
+function getStateSnapshot() {
+  return {
+    expenses,
+    categoryBudgets,
+    paycheckSplit,
+    nextId
+  };
+}
+
+function applyStateSnapshot(state) {
+  if (!state || typeof state !== "object") {
+    return;
+  }
+
+  const parsedExpenses = Array.isArray(state.expenses) ? state.expenses : [];
+  expenses = parsedExpenses
+    .filter((item) => item && typeof item === "object")
+    .map((item) => ({
+      id: Number(item.id),
+      amount: Number(item.amount),
+      category: normalizeCategory(item.category),
+      description: typeof item.description === "string" ? item.description.trim() : "",
+      date: typeof item.date === "string" && item.date ? item.date : getTodayString()
+    }))
+    .filter((item) => item.id > 0 && item.amount > 0 && item.description);
+
+  categoryBudgets = Object.fromEntries(CATEGORIES.map((category) => [category, 0]));
+  if (state.categoryBudgets && typeof state.categoryBudgets === "object") {
+    CATEGORIES.forEach((category) => {
+      const value = Number(state.categoryBudgets[category]);
+      categoryBudgets[category] = Number.isFinite(value) && value > 0 ? value : 0;
+    });
+  }
+
+  paycheckSplit = {
+    amount:
+      Number.isFinite(Number(state.paycheckSplit?.amount)) && Number(state.paycheckSplit?.amount) > 0
+        ? Number(state.paycheckSplit.amount)
+        : 0,
+    investmentsPct:
+      Number.isFinite(Number(state.paycheckSplit?.investmentsPct)) && Number(state.paycheckSplit?.investmentsPct) >= 0
+        ? Number(state.paycheckSplit.investmentsPct)
+        : 20,
+    funPct:
+      Number.isFinite(Number(state.paycheckSplit?.funPct)) && Number(state.paycheckSplit?.funPct) >= 0
+        ? Number(state.paycheckSplit.funPct)
+        : 10
+  };
+
+  nextId = Number.isFinite(Number(state.nextId)) && Number(state.nextId) > 0
+    ? Number(state.nextId)
+    : expenses.length > 0
+      ? Math.max(...expenses.map((expense) => expense.id)) + 1
+      : 1;
+}
+
+async function persistEncryptedState() {
+  const encrypted = await encryptText(JSON.stringify(getStateSnapshot()));
+  if (!encrypted) {
+    return;
+  }
+
+  localStorage.setItem(ENCRYPTED_STORAGE_KEY, JSON.stringify(encrypted));
+}
+
+function markActivity() {
+  if (!isAuthenticated) {
+    return;
+  }
+
+  localStorage.setItem(AUTH_LAST_ACTIVE_KEY, String(Date.now()));
+}
+
+function hasValidSessionWindow() {
+  const lastActive = Number(localStorage.getItem(AUTH_LAST_ACTIVE_KEY) || 0);
+  return Date.now() - lastActive <= AUTH_TIMEOUT_MS;
+}
+
+function setAuthenticated(passphrase) {
+  isAuthenticated = true;
+  sessionStorage.setItem(SESSION_AUTH_KEY, "1");
+  sessionStorage.setItem(SESSION_PASSPHRASE_KEY, passphrase);
+  localStorage.setItem(AUTH_CACHE_KEY, toBase64(new TextEncoder().encode(passphrase)));
+  markActivity();
+  authScreen.classList.add("hidden");
+  authScreen.setAttribute("aria-hidden", "true");
+}
+
+function showAuthError(message) {
+  authError.textContent = message;
+  authError.classList.remove("hidden");
+}
+
+function clearAuthError() {
+  authError.textContent = "";
+  authError.classList.add("hidden");
+}
+
+function showAuthScreen({ setupMode }) {
+  clearAuthError();
+  authPassphraseInput.value = "";
+  authPassphraseConfirmInput.value = "";
+  authConfirmWrap.classList.toggle("hidden", !setupMode);
+  authSubmitButton.textContent = setupMode ? "Create Passphrase" : "Log in";
+  authScreen.classList.remove("hidden");
+  authScreen.setAttribute("aria-hidden", "false");
+  authPassphraseInput.focus();
+
+  return new Promise((resolve) => {
+    const handleSubmit = (event) => {
+      event.preventDefault();
+      clearAuthError();
+
+      const passphrase = authPassphraseInput.value.trim();
+      const confirmation = authPassphraseConfirmInput.value.trim();
+
+      if (passphrase.length < 8) {
+        showAuthError("Passphrase must be at least 8 characters.");
+        return;
+      }
+
+      if (setupMode && passphrase !== confirmation) {
+        showAuthError("Passphrases do not match.");
+        return;
+      }
+
+      authForm.removeEventListener("submit", handleSubmit);
+      resolve(passphrase);
+    };
+
+    authForm.addEventListener("submit", handleSubmit);
+  });
+}
+
+function logoutAndReload() {
+  isAuthenticated = false;
+  encryptionKey = null;
+  sessionStorage.removeItem(SESSION_AUTH_KEY);
+  sessionStorage.removeItem(SESSION_PASSPHRASE_KEY);
+  localStorage.removeItem(AUTH_LAST_ACTIVE_KEY);
+  localStorage.removeItem(AUTH_CACHE_KEY);
+  window.location.reload();
+}
+
+function startSessionTimeoutWatchdog() {
+  const activityEvents = ["click", "keydown", "input", "pointerdown", "touchstart"];
+  activityEvents.forEach((eventName) => {
+    window.addEventListener(eventName, markActivity, { passive: true });
+  });
+
+  window.setInterval(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    if (!hasValidSessionWindow()) {
+      logoutAndReload();
+    }
+  }, 15000);
+}
+
+async function initializeKeyFromPassphrase(passphrase, existingSalt = "") {
+  const saltBytes = existingSalt ? fromBase64(existingSalt) : crypto.getRandomValues(new Uint8Array(16));
+  activeEncryptionSalt = existingSalt || toBase64(saltBytes);
+  encryptionKey = await deriveKey(passphrase, saltBytes);
+}
+
+function getShortLivedPassphrase() {
+  const cachedShortLived = localStorage.getItem(AUTH_CACHE_KEY);
+  if (!cachedShortLived) {
+    return "";
+  }
+
+  try {
+    return new TextDecoder().decode(fromBase64(cachedShortLived));
+  } catch (error) {
+    localStorage.removeItem(AUTH_CACHE_KEY);
+    return "";
+  }
+}
+
+async function initializeSecureState() {
+  const encryptedRaw = localStorage.getItem(ENCRYPTED_STORAGE_KEY);
+  const hadSession = sessionStorage.getItem(SESSION_AUTH_KEY) === "1";
+  const cachedPassphrase = sessionStorage.getItem(SESSION_PASSPHRASE_KEY) || "";
+  const shortLivedPassphrase = getShortLivedPassphrase();
+
+  if ((!hadSession || !cachedPassphrase) && !hasValidSessionWindow()) {
+    sessionStorage.removeItem(SESSION_AUTH_KEY);
+    sessionStorage.removeItem(SESSION_PASSPHRASE_KEY);
+    localStorage.removeItem(AUTH_CACHE_KEY);
+  }
+
+  if (encryptedRaw) {
+    try {
+      const payload = JSON.parse(encryptedRaw);
+      let firstAttemptPassphrase = sessionStorage.getItem(SESSION_PASSPHRASE_KEY);
+      if (!firstAttemptPassphrase && hasValidSessionWindow() && shortLivedPassphrase) {
+        firstAttemptPassphrase = shortLivedPassphrase;
+      }
+
+      while (true) {
+        const passphrase = firstAttemptPassphrase || (await showAuthScreen({ setupMode: false }));
+        firstAttemptPassphrase = "";
+
+        try {
+          await initializeKeyFromPassphrase(passphrase, payload.salt);
+          const plainText = await decryptPayload(payload);
+          if (plainText) {
+            applyStateSnapshot(JSON.parse(plainText));
+            storageMode = "encrypted";
+            setAuthenticated(passphrase);
+            announceStatus("Logged in. Your encrypted data is unlocked.");
+            return;
+          }
+        } catch (error) {
+          sessionStorage.removeItem(SESSION_AUTH_KEY);
+          sessionStorage.removeItem(SESSION_PASSPHRASE_KEY);
+          showAuthError("Incorrect passphrase. Try again.");
+        }
+      }
+    } catch (error) {
+      localStorage.removeItem(ENCRYPTED_STORAGE_KEY);
+    }
+  }
+
+  loadFromLocalStorage();
+  loadBudgetsFromLocalStorage();
+  loadPaycheckSplitFromLocalStorage();
+
+  const passphrase = await showAuthScreen({ setupMode: true });
+  await initializeKeyFromPassphrase(passphrase);
+  setAuthenticated(passphrase);
+
+  storageMode = "encrypted";
+  await persistEncryptedState();
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(BUDGET_STORAGE_KEY);
+  localStorage.removeItem(PAYCHECK_STORAGE_KEY);
+  announceStatus("Privacy mode enabled. Your data is encrypted and your login session is active.");
+}
 
 function formatCurrency(value) {
   return `$${value.toFixed(2)}`;
@@ -604,11 +930,25 @@ function updateBudgetSheet(categoryTotals) {
 }
 
 function saveToLocalStorage() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+  if (storageMode === "encrypted") {
+    persistEncryptedState();
+    return;
+  }
+
+  if (storageMode === "legacy") {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses));
+  }
 }
 
 function saveBudgetsToLocalStorage() {
-  localStorage.setItem(BUDGET_STORAGE_KEY, JSON.stringify(categoryBudgets));
+  if (storageMode === "encrypted") {
+    persistEncryptedState();
+    return;
+  }
+
+  if (storageMode === "legacy") {
+    localStorage.setItem(BUDGET_STORAGE_KEY, JSON.stringify(categoryBudgets));
+  }
 }
 
 function loadBudgetsFromLocalStorage() {
@@ -667,7 +1007,14 @@ function loadFromLocalStorage() {
 }
 
 function savePaycheckSplitToLocalStorage() {
-  localStorage.setItem(PAYCHECK_STORAGE_KEY, JSON.stringify(paycheckSplit));
+  if (storageMode === "encrypted") {
+    persistEncryptedState();
+    return;
+  }
+
+  if (storageMode === "legacy") {
+    localStorage.setItem(PAYCHECK_STORAGE_KEY, JSON.stringify(paycheckSplit));
+  }
 }
 
 function loadPaycheckSplitFromLocalStorage() {
@@ -795,13 +1142,20 @@ window.addEventListener("keydown", (event) => {
 expenseDateInput.value = getTodayString();
 inlineExpenseDateInput.value = getTodayString();
 timeFilterSelect.value = "monthly";
-loadFromLocalStorage();
-loadBudgetsFromLocalStorage();
-loadPaycheckSplitFromLocalStorage();
-renderBudgetSheet();
-renderPaycheckInputs();
-renderPaycheckBreakdown();
-handleTimeFilterChange();
+async function initializeApp() {
+  startSessionTimeoutWatchdog();
+  await initializeSecureState();
+  renderBudgetSheet();
+  renderPaycheckInputs();
+  renderPaycheckBreakdown();
+  handleTimeFilterChange();
+}
+
+initializeApp();
+
+if (logoutButton) {
+  logoutButton.addEventListener("click", logoutAndReload);
+}
 
 paycheckAmountInput.addEventListener("input", handlePaycheckInputChange);
 splitInvestmentsInput.addEventListener("input", handlePaycheckInputChange);
