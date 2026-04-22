@@ -57,3 +57,16 @@ With more time, the app could include:
 - Charts (bar/pie/line) for richer analytics
 - Export to CSV/PDF and import previous records
 
+# What I learned
+
+# Milestone 1 & 0:
+
+I learned that for prompting to get a more user friendly dashboard, it's nice to have a pi chart breakdown to easily understand what part of my category makes up most of my spending. And also like outlining the guardrails and loigic of what a budget tracker can and can't do was something I did not realize had a lot more to it. 
+
+# Milestone 2 + 3 + More Iterations:
+
+I realized later as I was building a budget traker that I should probably add a log in screen that would keep my data private. I also wanted to make sure that my passwords weren't going to be easily accessible to the public so I made sure to get rid of any passcodes and made it private. I added a log in screen with user-name and password following best practices, and also made sure to make it accessible and user friendly. 
+
+What does for (const item of items) do differently than for (let i = 0; ...)
+--> for (let i=0) uses an index number
+--> for (const item of items) gives you the item directly
